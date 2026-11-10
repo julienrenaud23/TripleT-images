@@ -17,26 +17,31 @@ const app = express();
 app.use(express.json());
 app.use(cookieParser());
 app.use("/auth", authRouter);
+app.use("/images", requireAuthOrAPI);
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
-const UPLOADS = path.join(process.cwd(), "uploads");
+const uploads_path = path.join(process.cwd(), "uploads");
 
-app.post("/images", upload.single("image"), requireAuthOrAPI, async (req, res) => {
+
+app.post("/images", upload.single("image"), async (req, res) => {
   if (!req.file) return res.status(400).send("No image");
-  const filename = req.file.filename;
-  await fs.mkdir(UPLOADS, { recursive: true });
-  const image_path = path.join(UPLOADS, `${req.user_id}`, `${filename}.jpg`);
+
+  const { filename } = req.body ?? {};
+  if (!filename) return res.status(400).send("Must include a filename");
+
+  const image_path = path.join(uploads_path, `${req.user_id}`, `${filename}.jpg`);
+  await fs.mkdir(path.dirname(image_path), { recursive: true });
   // ./uploads/uid
 
   await sharp(req.file.buffer).resize(368, 448, { fit: "inside" }).jpeg({ quality: 75 })
     .toFile(image_path);
-  res.json({ id, url: `/images/${id}` });
+  res.json({ id: req.user_id, url: `/images/${req.user_id}` });
 });
 
 app.post("/account", requireAuth, async (req, res) => {
   const { api_code } = req.body ?? {};
   if (!api_code)
-    return res.sendStatus(400).send("No watch application key provided");
+    return res.status(400).send("No watch application key provided");
   
   try {
     await pool.query(`
@@ -44,7 +49,7 @@ app.post("/account", requireAuth, async (req, res) => {
       SET api_code = $1
       WHERE id = $2;
     `, [api_code, req.user_id]);
-    req.send(201);
+    req.sendStatus(201);
   } catch (err) {
     if (err.code === "23505") return res.status(409).send("Code already linked with an account"); // unique violation
     throw err;
@@ -58,7 +63,7 @@ app.get("/images/:filename", requireAuthOrAPI, async (req, res) => {
   const filename = path.basename(req.params.filename); // blocks path traversal
   res.set("Cache-Control", "public, max-age=31536000, immutable");
   
-  const image_dir = path.join(UPLOADS, `${user_id}`);
+  const image_dir = path.join(uploads_path, `${user_id}`);
   res.sendFile(
     `${filename}`,
     {
@@ -73,8 +78,14 @@ app.get("/images/:filename", requireAuthOrAPI, async (req, res) => {
 
 app.get("/images", requireAuthOrAPI, async (req, res) => {
   let user_id = req.user_id;
-  const dir_path = path.join(UPLOADS, `${user_id}`);
+  const dir_path = path.join(uploads_path, `${user_id}`);
   const dir_obj = await listDirJSON(dir_path);
+
+  if (dir_obj == null) {
+    // create user's directory
+    const image_path = path.join(process.cwd(), "uploads", `${req.user_id}`, `${filename}.jpg`);
+    await fs.mkdir(path.dirname(image_path), { recursive: true });
+  }
   res.json(dir_obj);
 });
 
@@ -101,14 +112,14 @@ async function listDirJSON(dir_path) {
 
     return file_infos;
   } catch (err) {
-    return {};
+    return null;
   }
 }
+
+// for testing
+module.exports = { app }
 
 // add home, login, sign up, and settings page
 // home = galery
 
-await init().then(() => app.listen(3000));
-
-// for testing
-module.exports = { app }
+init().then(() => app.listen(3000));

@@ -5,6 +5,7 @@
 - stored in uploads/user-id
 - watch uses api with its hex-key, server does database lookup and sends the directory (json) over to the watch
 - the header property for the api is x-api-code
+- must include a filename when uploading an image to the website
 - the watch app must check for new files from the directory.json and send get requests for each image it doesnt have yet
 
 ### api json format:

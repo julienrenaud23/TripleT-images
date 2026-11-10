@@ -20,6 +20,13 @@ authRouter.post("/register", async (req, res) => {
       [username, hash(password, salt), salt]
     );
     res.sendStatus(201);
+
+    // get uid
+    const user_id = await pool.query(`SELECT id FROM users WHERE username = ${username}`);
+
+    // create user's directory
+    const image_path = path.join(process.cwd(), "uploads", `${user_id}`, `${filename}.jpg`);
+    await fs.mkdir(path.dirname(image_path), { recursive: true });
   } catch (err) {
     if (err.code === "23505") return res.status(409).send("Username taken"); // unique violation
     throw err;
@@ -81,14 +88,14 @@ async function requireAuthOrAPI(req, res, next) {
     // check api code in header since no cookie was found
     const api_code = req.header("x-api-code");
     if (!api_code) {
-      return res.sendStatus(401).send("No api code provided");
+      return res.status(401).send("No api code provided");
     }
 
     const { rows } = await pool.query(`
       SELECT id FROM users WHERE api_code = $1
       `, [api_code]);
     if (!rows[0])
-      return res.sendStatus(404).send("No account linked to this api_code yet");
+      return res.status(404).send("No account linked to this api_code yet");
 
     user_id = rows[0].id;
   } else {
@@ -100,7 +107,7 @@ async function requireAuthOrAPI(req, res, next) {
     );
 
     if (!rows[0])
-      return res.sendStatus(401).send("invalid login");
+      return res.status(401).send("invalid login");
     user_id = rows[0].user_id;
   }
 
