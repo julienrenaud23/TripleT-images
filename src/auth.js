@@ -69,8 +69,43 @@ async function requireAuth(req, res, next) {
   );
   if (!rows[0]) return res.sendStatus(401);
 
-  req.userId = rows[0].user_id;
+  req.user_id = rows[0].user_id;
   next();
 }
 
-module.exports = { authRouter, requireAuth };
+async function requireAuthOrAPI(req, res, next) {
+  // basically requireAuth but includes api calls from the watch
+  const token = req.cookies?.session;
+  let user_id;
+  if (!token) {
+    // check api code in header since no cookie was found
+    const api_code = req.header("x-api-code");
+    if (!api_code) {
+      return res.sendStatus(401).send("No api code provided");
+    }
+
+    const { rows } = await pool.query(`
+      SELECT id FROM users WHERE api_code = $1
+      `, [api_code]);
+    if (!rows[0])
+      return res.sendStatus(404).send("No account linked to this api_code yet");
+
+    user_id = rows[0].id;
+  } else {
+    // get user_id from current login
+    // reuses code from requireAuth
+    const { rows } = await pool.query(
+    "SELECT user_id FROM sessions WHERE token = $1 AND created_at > now() - interval '7 days'",
+    [token]
+    );
+
+    if (!rows[0])
+      return res.sendStatus(401).send("invalid login");
+    user_id = rows[0].user_id;
+  }
+
+  req.user_id = user_id;
+  next();
+}
+
+module.exports = { authRouter, requireAuth, requireAuthOrAPI };

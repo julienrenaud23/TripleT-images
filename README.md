@@ -4,11 +4,12 @@
 - in her settings, she chooses which code she links her account to
 - stored in uploads/user-id
 - watch uses api with its hex-key, server does database lookup and sends the directory (json) over to the watch
+- the header property for the api is x-api-code
 - the watch app must check for new files from the directory.json and send get requests for each image it doesnt have yet
 
 ### api json format:
 {
-    [{filename: "example.jpg", date: "2025-04-09 12:30:14 UTC"}, {filename: "example2.jpg", date: "2025-04-09 12:30:14 UTC"}]
+    [{filename: "example.jpg", modified: "2025-04-09 12:30:14 UTC"}, {filename: "example2.jpg", modified: "2025-04-09 12:30:14 UTC"}]
 }
 
 - if a file is downloaded locally but not on the json, delete it.

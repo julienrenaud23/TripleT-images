@@ -4,9 +4,14 @@ import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 
+/*
+Images get stored in ./uploads/user_id
+The api can fetch images if its linked to an account
+*/
+
 const express = require("express");
 const cookieParser = require("cookie-parser");
-const { authRouter, requireAuth } = require("./auth");
+const { authRouter, requireAuth, requireAuthOrAPI } = require("./auth");
 const { pool, init } = require("./db");
 
 const app = express();
@@ -17,12 +22,15 @@ app.use("/auth", authRouter);
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const UPLOADS = path.join(process.cwd(), "uploads");
 
-app.post("/images", upload.single("image"), async (req, res) => {
+app.post("/images", upload.single("image"), requireAuthOrAPI, async (req, res) => {
   if (!req.file) return res.status(400).send("No image");
-  const id = crypto.randomUUID();
+  const filename = req.file.filename;
   await fs.mkdir(UPLOADS, { recursive: true });
+  const image_path = path.join(UPLOADS, `${req.user_id}`, `${filename}.jpg`);
+  // ./uploads/uid
+
   await sharp(req.file.buffer).resize(368, 448, { fit: "inside" }).jpeg({ quality: 75 })
-    .toFile(path.join(UPLOADS, `${id}.jpg`));
+    .toFile(image_path);
   res.json({ id, url: `/images/${id}` });
 });
 
@@ -36,7 +44,7 @@ app.post("/account", requireAuth, async (req, res) => {
       UPDATE users
       SET api_code = $1
       WHERE id = $2;
-    `, [api_code, req.userId]);
+    `, [api_code, req.user_id]);
     req.send(201);
   } catch (err) {
     if (err.code === "23505") return res.status(409).send("Code already linked with an account"); // unique violation
@@ -44,34 +52,8 @@ app.post("/account", requireAuth, async (req, res) => {
   }
 });
 
-app.get("/images/:filename", async (req, res) => {
-  const token = req.cookies?.session;
-  let user_id;
-  if (!token) {
-    // use api code from http header instead
-    const api_code = req.header("x-api-code");
-    if (!api_code)
-      return res.sendStatus(401).send("invalid api code");
-
-    const { rows } = await pool.query(`
-      SELECT id FROM users WHERE api_code = $1
-      `, api_code);
-    if (!rows[0])
-      return res.sendStatus(404).send("No account linked to this api_code yet");
-
-    user_id = rows[0].id;
-  } else {
-    // get user_id from current login
-    // reuses code from requireAuth
-    const { rows } = await pool.query(
-    "SELECT user_id FROM sessions WHERE token = $1 AND created_at > now() - interval '7 days'",
-    [token]
-    );
-
-    if (!rows[0])
-      return res.sendStatus(401).send("invalid login");
-    user_id = rows[0].user_id;
-  }
+app.get("/images/:filename", requireAuthOrAPI, async (req, res) => {
+  let user_id = req.user_id;
 
   // filename contains extension too
   const filename = path.basename(req.params.filename); // blocks path traversal
@@ -90,7 +72,40 @@ app.get("/images/:filename", async (req, res) => {
   );
 });
 
-// todo: add app.get("/images") that returns the json
+app.get("/images", requireAuthOrAPI, async (req, res) => {
+  let user_id = req.user_id;
+  const dir_path = path.join(UPLOADS, `${user_id}`);
+  const dir_obj = await listDirJSON(dir_path);
+  res.json(dir_obj);
+});
+
+
+async function listDirJSON(dir_path) {
+  try {
+    const entries = await fs.readdir(dir_path, { withFileTypes: true });
+    let file_infos = [];
+    for (const entry of entries) {
+      if (entry.isFile()) {
+        const fullPath = path.join(dir_path, entry.name);
+        
+        // Fetch metadata stats for the file
+        const stats = await fs.stat(fullPath);
+        
+        // stats.mtime holds the JavaScript Date object of the last modification
+        const file_obj = {
+                  filename: entry.name,
+                  time: stats.mtime.toISOString()
+                };
+        file_infos.push(file_obj);
+      }
+    }
+
+    return file_infos;
+  } catch (err) {
+    return {};
+  }
+}
+
 // add home, login, sign up, and settings page
 // home = galery
 
