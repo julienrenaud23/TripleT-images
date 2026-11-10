@@ -1,8 +1,7 @@
-import multer from "multer";
-import sharp from "sharp";
-import fs from "fs/promises";
-import path from "path";
-import crypto from "crypto";
+const multer = require("multer");
+const sharp = require("sharp");
+const fs = require("fs/promises");
+const path = require("path");
 
 /*
 Images get stored in ./uploads/user_id
@@ -110,3 +109,6 @@ async function listDirJSON(dir_path) {
 // home = galery
 
 await init().then(() => app.listen(3000));
+
+// for testing
+module.exports = { app }
