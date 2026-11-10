@@ -26,16 +26,17 @@ const uploads_path = path.join(process.cwd(), "uploads");
 app.post("/images", upload.single("image"), async (req, res) => {
   if (!req.file) return res.status(400).send("No image");
 
-  const { filename } = req.body ?? {};
+  let { filename } = req.body ?? {};
   if (!filename) return res.status(400).send("Must include a filename");
 
+  filename = path.basename(filename);
   const image_path = path.join(uploads_path, `${req.user_id}`, `${filename}.jpg`);
   await fs.mkdir(path.dirname(image_path), { recursive: true });
   // ./uploads/uid
 
   await sharp(req.file.buffer).resize(368, 448, { fit: "inside" }).jpeg({ quality: 75 })
     .toFile(image_path);
-  res.json({ id: req.user_id, url: `/images/${req.user_id}` });
+  res.json({ id: req.user_id, url: `/images/${filename}.jpg` });
 });
 
 app.post("/account", requireAuth, async (req, res) => {
@@ -49,26 +50,25 @@ app.post("/account", requireAuth, async (req, res) => {
       SET api_code = $1
       WHERE id = $2;
     `, [api_code, req.user_id]);
-    req.sendStatus(201);
+    res.sendStatus(201);
   } catch (err) {
     if (err.code === "23505") return res.status(409).send("Code already linked with an account"); // unique violation
     throw err;
   }
 });
 
-app.get("/images/:filename", requireAuthOrAPI, async (req, res) => {
+app.get("/images/:filename", async (req, res) => {
   let user_id = req.user_id;
 
   // filename contains extension too
   const filename = path.basename(req.params.filename); // blocks path traversal
-  res.set("Cache-Control", "public, max-age=31536000, immutable");
   
   const image_dir = path.join(uploads_path, `${user_id}`);
   res.sendFile(
     `${filename}`,
     {
       root: image_dir,
-      headers: { "Cache-Control": "public, max-age=31536000, immutable" },
+      headers: { "Cache-Control": "private, no-cache" },
     },
     (err) => {
       if (err && !res.headersSent) res.sendStatus(404);
@@ -76,15 +76,15 @@ app.get("/images/:filename", requireAuthOrAPI, async (req, res) => {
   );
 });
 
-app.get("/images", requireAuthOrAPI, async (req, res) => {
+app.get("/images", async (req, res) => {
   let user_id = req.user_id;
   const dir_path = path.join(uploads_path, `${user_id}`);
   const dir_obj = await listDirJSON(dir_path);
 
   if (dir_obj == null) {
     // create user's directory
-    const image_path = path.join(process.cwd(), "uploads", `${req.user_id}`, `${filename}.jpg`);
-    await fs.mkdir(path.dirname(image_path), { recursive: true });
+    await fs.mkdir(dir_path, { recursive: true });
+    return res.json([]);
   }
   res.json(dir_obj);
 });

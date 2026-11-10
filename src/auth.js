@@ -1,5 +1,7 @@
 const { pool } = require("./db");
 const crypto = require("crypto");
+const fs = require("fs/promises");
+const path = require("path");
 const { Router } = require("express");
 
 const SESSION_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -19,14 +21,14 @@ authRouter.post("/register", async (req, res) => {
       "INSERT INTO users (username, password_hash, salt) VALUES ($1, $2, $3)",
       [username, hash(password, salt), salt]
     );
+
+    const { rows } = await pool.query(
+    "INSERT INTO users (username, password_hash, salt) VALUES ($1, $2, $3) RETURNING id",
+    [username, hash(password, salt), salt]
+    );
+    await fs.mkdir(path.join(process.cwd(), "uploads", String(rows[0].id)), { recursive: true });
     res.sendStatus(201);
 
-    // get uid
-    const user_id = await pool.query(`SELECT id FROM users WHERE username = ${username}`);
-
-    // create user's directory
-    const image_path = path.join(process.cwd(), "uploads", `${user_id}`, `${filename}.jpg`);
-    await fs.mkdir(path.dirname(image_path), { recursive: true });
   } catch (err) {
     if (err.code === "23505") return res.status(409).send("Username taken"); // unique violation
     throw err;
