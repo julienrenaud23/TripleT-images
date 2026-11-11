@@ -16,7 +16,7 @@ const { pool, init } = require("./db");
 const app = express();
 app.use(express.json());
 app.use(cookieParser());
-app.use("/auth", authRouter);
+app.use(authRouter);
 app.use("/images", requireAuthOrAPI);
 app.use(express.static("public", { index: false }));
 
@@ -58,6 +58,13 @@ app.post("/account", requireAuth, async (req, res) => {
   }
 });
 
+app.post("/delete/:filename", requireAuth, async (req, res) => {
+  const filename = path.basename(req.params.filename);
+  const image_dir = path.join(uploads_path, `${req.user_id}`, filename);
+  await fs.rm(image_dir);
+  return res.sendStatus(204);
+});
+
 app.get("/images/:filename", async (req, res) => {
   let user_id = req.user_id;
 
@@ -90,6 +97,30 @@ app.get("/images", async (req, res) => {
   res.json(dir_obj);
 });
 
+app.get("/me", requireAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    "SELECT username, api_code FROM users WHERE id = $1",
+    [req.user_id]
+  );
+  res.json(rows[0]);
+});
+
+app.get("/", requireAuth, (req, res) => res.sendFile(path.join(__dirname, "../views/home.html")));
+app.get("/account", requireAuth, (req, res) => res.sendFile(path.join(__dirname, "../views/account.html")));
+app.get("/login", (req, res) => res.sendFile(path.join(__dirname, "../public/login.html")));
+app.get("/register", (req, res) => res.sendFile(path.join(__dirname, "../public/register.html")));
+
+// for testing
+module.exports = { app }
+
+// home = galery
+
+init().then(() => {
+  port = process.env.PORT || 3000;
+  console.log(`Listening on port ${port}`);
+  app.listen(3000);
+});
+
 async function listDirJSON(dir_path) {
   try {
     const entries = await fs.readdir(dir_path, { withFileTypes: true });
@@ -115,20 +146,3 @@ async function listDirJSON(dir_path) {
     return null;
   }
 }
-
-app.get("/", requireAuth, (req, res) => res.sendFile(path.join(__dirname, "../views/home.html")));
-app.get("/account", requireAuth, (req, res) => res.sendFile(path.join(__dirname, "../views/account.html")));
-
-
-
-// for testing
-module.exports = { app }
-
-// add home, login, sign up, and settings page
-// home = galery
-
-init().then(() => {
-  port = process.env.PORT || 3000;
-  console.log(`Listening on port ${port}`);
-  app.listen(3000);
-});

@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Your images</title>
+  <style>
+    :root {
+      --bg: #f5f6f8;
+      --surface: #ffffff;
+      --text: #1a1d23;
+      --muted: #5b6270;
+      --border: #d4d8df;
+      --accent: #2456d6;
+      --accent-text: #ffffff;
+      --danger: #b42318;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #14161a;
+        --surface: #1d2026;
+        --text: #eceef2;
+        --muted: #9aa2b1;
+        --border: #343944;
+        --accent: #6c93f5;
+        --accent-text: #0e1117;
+        --danger: #ff8a80;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding-bottom: 6rem; /* room for the fixed upload bar */
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.5;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.9rem 1.25rem;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    h1 { margin: 0; font-size: 1.25rem; }
+
+    a { color: var(--accent); }
+
+    main {
+      max-width: 70rem;
+      margin: 0 auto;
+      padding: 1.25rem;
+    }
+
+    .status {
+      min-height: 1.5rem;
+      margin: 0 0 0.75rem;
+      color: var(--danger);
+      font-size: 0.9rem;
+    }
+
+    #gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+      gap: 1rem;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .card {
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .card img {
+      display: block;
+      width: 100%;
+      aspect-ratio: 4 / 5;
+      object-fit: contain;
+      background: var(--bg);
+    }
+
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+    }
+
+    .name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.9rem;
+    }
+
+    .delete {
+      flex: none;
+      padding: 0.25rem 0.6rem;
+      font: inherit;
+      font-size: 0.85rem;
+      color: var(--danger);
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    #empty {
+      margin: 3rem 0;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .upload-bar {
+      position: fixed;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      display: flex;
+      justify-content: center;
+      padding: 1rem;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+    }
+
+    button.primary {
+      padding: 0.65rem 1.5rem;
+      font: inherit;
+      font-weight: 600;
+      color: var(--accent-text);
+      background: var(--accent);
+      border: 0;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      padding: 0.65rem 1.5rem;
+      font: inherit;
+      color: var(--text);
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    button:disabled { opacity: 0.6; cursor: wait; }
+
+    button:focus-visible,
+    a:focus-visible,
+    input:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    dialog {
+      width: min(22rem, calc(100% - 2rem));
+      padding: 1.5rem;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    dialog h2 { margin: 0 0 1rem; font-size: 1.1rem; }
+
+    dialog label {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    dialog input {
+      width: 100%;
+      margin-bottom: 0.75rem;
+      padding: 0.6rem 0.75rem;
+      font: inherit;
+      color: var(--text);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Your images</h1>
+    <a href="/account">Settings</a>
+  </header>
+
+  <main>
+    <p id="status" class="status" role="alert"></p>
+    <ul id="gallery"></ul>
+    <p id="empty" hidden>No images yet. Upload one to get started.</p>
+  </main>
+
+  <div class="upload-bar">
+    <button id="upload-btn" class="primary" type="button">Upload image</button>
+    <input id="file-input" type="file" accept="image/*" hidden>
+  </div>
+
+  <dialog id="name-dialog">
+    <h2>Name this image</h2>
+    <form id="name-form">
+      <label for="image-name">Name</label>
+      <input id="image-name" type="text" autocomplete="off" required>
+      <p id="dialog-error" class="status" role="alert"></p>
+      <div class="dialog-actions">
+        <button id="cancel-btn" class="secondary" type="button">Cancel</button>
+        <button id="confirm-btn" class="primary" type="submit">Upload</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    const gallery = document.getElementById("gallery");
+    const emptyEl = document.getElementById("empty");
+    const statusEl = document.getElementById("status");
+    const uploadBtn = document.getElementById("upload-btn");
+    const fileInput = document.getElementById("file-input");
+    const dialog = document.getElementById("name-dialog");
+    const form = document.getElementById("name-form");
+    const nameInput = document.getElementById("image-name");
+    const dialogError = document.getElementById("dialog-error");
+    const confirmBtn = document.getElementById("confirm-btn");
+    const cancelBtn = document.getElementById("cancel-btn");
+
+    let images = [];
+    let pendingFile = null;
+
+    // "enrique.jpg" -> "enrique"
+    const displayName = (filename) => filename.replace(/\.[^.]+$/, "");
+
+    // fetch wrapper: send the session cookie, and go to /login if it has expired
+    async function api(url, options = {}) {
+      const res = await fetch(url, { credentials: "include", ...options });
+      if (res.status === 401) location.href = "/login";
+      return res;
+    }
+
+    async function loadImages() {
+      statusEl.textContent = "";
+      try {
+        const res = await api("/images");
+        if (!res.ok) {
+          statusEl.textContent = "Couldn't load your images. Refresh to try again.";
+          return;
+        }
+        images = await res.json();
+        images.sort((a, b) => b.time.localeCompare(a.time)); // newest first
+        render();
+      } catch {
+        statusEl.textContent = "Can't reach the server. Check your connection and refresh.";
+      }
+    }
+
+    function render() {
+      gallery.replaceChildren();
+      emptyEl.hidden = images.length > 0;
+
+      for (const { filename } of images) {
+        const name = displayName(filename);
+
+        const li = document.createElement("li");
+        li.className = "card";
+
+        const img = document.createElement("img");
+        img.src = `/images/${encodeURIComponent(filename)}`;
+        img.alt = name;
+        img.loading = "lazy";
+
+        const footer = document.createElement("div");
+        footer.className = "card-footer";
+
+        const label = document.createElement("span");
+        label.className = "name";
+        label.textContent = name;
+        label.title = name;
+
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "delete";
+        del.textContent = "Delete";
+        del.setAttribute("aria-label", `Delete ${name}`);
+        del.addEventListener("click", () => deleteImage(filename));
+
+        footer.append(label, del);
+        li.append(img, footer);
+        gallery.append(li);
+      }
+    }
+
+    async function deleteImage(filename) {
+      if (!confirm(`Delete "${displayName(filename)}"?`)) return;
+      statusEl.textContent = "";
+      try {
+        const res = await api(`/delete/${encodeURIComponent(filename)}`, { method: "POST" });
+        if (!res.ok) {
+          statusEl.textContent = (await res.text()) || "Couldn't delete the image. Try again.";
+          return;
+        }
+        await loadImages();
+      } catch {
+        statusEl.textContent = "Can't reach the server. Check your connection and try again.";
+      }
+    }
+
+    // Upload: pick a file, name it, send it
+    uploadBtn.addEventListener("click", () => fileInput.click());
+
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      pendingFile = file;
+      nameInput.value = displayName(file.name);
+      dialogError.textContent = "";
+      dialog.showModal();
+      nameInput.select();
+    });
+
+    cancelBtn.addEventListener("click", () => dialog.close());
+
+    dialog.addEventListener("close", () => {
+      fileInput.value = ""; // lets you pick the same file again
+      pendingFile = null;
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      dialogError.textContent = "";
+
+      const name = nameInput.value.trim().replace(/[\\/]/g, "");
+      if (!name) {
+        dialogError.textContent = "Enter a name for the image.";
+        return;
+      }
+      // The server overwrites files with the same name, so catch that here
+      if (images.some((i) => displayName(i.filename).toLowerCase() === name.toLowerCase())) {
+        dialogError.textContent = `"${name}" is already used. Pick a different name.`;
+        return;
+      }
+
+      confirmBtn.disabled = true;
+      const body = new FormData();
+      body.append("filename", name);
+      body.append("image", pendingFile);
+
+      try {
+        const res = await api("/images", { method: "POST", body });
+        if (!res.ok) {
+          dialogError.textContent = (await res.text()) || "Upload failed. Try again.";
+          return;
+        }
+        dialog.close();
+        await loadImages();
+      } catch {
+        dialogError.textContent = "Can't reach the server. Check your connection and try again.";
+      } finally {
+        confirmBtn.disabled = false;
+      }
+    });
+
+    loadImages();
+  </script>
+</body>
+</html>

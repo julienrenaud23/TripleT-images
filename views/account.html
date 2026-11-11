@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Settings</title>
+  <style>
+    :root {
+      --bg: #f5f6f8;
+      --surface: #ffffff;
+      --text: #1a1d23;
+      --muted: #5b6270;
+      --border: #d4d8df;
+      --accent: #2456d6;
+      --accent-text: #ffffff;
+      --error: #b42318;
+      --success: #1a7f37;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #14161a;
+        --surface: #1d2026;
+        --text: #eceef2;
+        --muted: #9aa2b1;
+        --border: #343944;
+        --accent: #6c93f5;
+        --accent-text: #0e1117;
+        --error: #ff8a80;
+        --success: #6fdc8c;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.5;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.9rem 1.25rem;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    a, .link {
+      color: var(--accent);
+    }
+
+    /* a button that looks like a link */
+    .link {
+      padding: 0;
+      font: inherit;
+      text-decoration: underline;
+      background: none;
+      border: 0;
+      cursor: pointer;
+    }
+
+    main {
+      width: 100%;
+      max-width: 26rem;
+      margin: 2rem auto;
+      padding: 2rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    h1 { margin: 0 0 1.5rem; font-size: 1.5rem; }
+
+    .field { margin-bottom: 1.25rem; }
+
+    .field-label {
+      display: block;
+      margin-bottom: 0.25rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    #username { margin: 0; }
+
+    input {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      font: inherit;
+      letter-spacing: 0.1em;
+      color: var(--text);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+
+    input::placeholder { color: var(--muted); }
+
+    .hint {
+      margin: 0.35rem 0 0;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .message {
+      min-height: 1.5rem;
+      margin: 0 0 0.75rem;
+      font-size: 0.9rem;
+    }
+    .message.error { color: var(--error); }
+    .message.success { color: var(--success); }
+
+    button.primary {
+      width: 100%;
+      padding: 0.65rem;
+      font: inherit;
+      font-weight: 600;
+      color: var(--accent-text);
+      background: var(--accent);
+      border: 0;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    button:disabled { opacity: 0.6; cursor: wait; }
+
+    button:focus-visible,
+    a:focus-visible,
+    input:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/">Back to images</a>
+    <button id="logout" class="link" type="button">Log out</button>
+  </header>
+
+  <main>
+    <h1>Settings</h1>
+
+    <div class="field">
+      <span class="field-label">Username</span>
+      <p id="username"></p>
+    </div>
+
+    <form id="code-form" novalidate>
+      <div class="field">
+        <label class="field-label" for="api-code">Watch code</label>
+        <input id="api-code" type="text" maxlength="6" autocomplete="off" spellcheck="false" aria-describedby="code-hint">
+        <p id="code-hint" class="hint">Enter the 6-character code shown on your watch. Your current code is shown in the field until you type a new one.</p>
+      </div>
+
+      <p id="message" class="message" role="status"></p>
+      <button id="apply-btn" class="primary" type="submit">Apply changes</button>
+    </form>
+  </main>
+
+  <script>
+    const usernameEl = document.getElementById("username");
+    const form = document.getElementById("code-form");
+    const codeInput = document.getElementById("api-code");
+    const messageEl = document.getElementById("message");
+    const applyBtn = document.getElementById("apply-btn");
+    const logoutBtn = document.getElementById("logout");
+
+    let currentCode = "";
+
+    function showMessage(text, type) {
+      messageEl.textContent = text;
+      messageEl.className = `message ${type || ""}`;
+    }
+
+    // fetch wrapper: send the session cookie, and go to /login if it has expired
+    async function api(url, options = {}) {
+      const res = await fetch(url, { credentials: "include", ...options });
+      if (res.status === 401) location.href = "/login";
+      return res;
+    }
+
+    async function loadAccount() {
+      try {
+        const res = await api("/me");
+        if (!res.ok) {
+          showMessage("Couldn't load your account. Refresh to try again.", "error");
+          return;
+        }
+        const { username, api_code } = await res.json();
+        usernameEl.textContent = username;
+        currentCode = api_code || "";
+        codeInput.placeholder = currentCode; // empty when no code is linked
+      } catch {
+        showMessage("Can't reach the server. Check your connection and refresh.", "error");
+      }
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      showMessage("");
+
+      const code = codeInput.value.trim();
+      if (code.length !== 6) {
+        showMessage("The watch code must be exactly 6 characters.", "error");
+        return;
+      }
+      if (code === currentCode) {
+        showMessage("That code is already linked to your account.", "error");
+        return;
+      }
+
+      applyBtn.disabled = true;
+      try {
+        const res = await api("/account", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ api_code: code }),
+        });
+
+        if (!res.ok) {
+          showMessage((await res.text()) || "Couldn't update the code. Try again.", "error");
+          return;
+        }
+        currentCode = code;
+        codeInput.placeholder = code;
+        codeInput.value = "";
+        showMessage("Watch code updated.", "success");
+      } catch {
+        showMessage("Can't reach the server. Check your connection and try again.", "error");
+      } finally {
+        applyBtn.disabled = false;
+      }
+    });
+
+    logoutBtn.addEventListener("click", async () => {
+        try {
+            const res = await fetch("/logout", { method: "POST", credentials: "include" });
+            if (!res.ok) throw new Error();
+            location.href = "/login";
+        } catch {
+            showMessage("Couldn't log out. Try again.", "error");
+        }
+    });
+
+    loadAccount();
+  </script>
+</body>
+</html>
