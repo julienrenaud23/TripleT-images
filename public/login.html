@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Log in</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main>
+    <h1>Log in</h1>
+
+    <form id="login-form">
+      <label for="username">Username</label>
+      <input id="username" name="username" type="text" autocomplete="username" required autofocus>
+
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+      <p id="error" class="error" role="alert"></p>
+      <button type="submit">Log in</button>
+    </form>
+
+    <p class="alt">No account yet? <a href="/register">Create one</a></p>
+  </main>
+
+  <script>
+    const form = document.getElementById("login-form");
+    const errorEl = document.getElementById("error");
+    const button = form.querySelector("button");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorEl.textContent = "";
+      button.disabled = true;
+
+      try {
+        const res = await fetch("/auth/login", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: form.username.value,
+            password: form.password.value,
+          }),
+        });
+
+        if (res.ok) {
+          location.href = "/";
+          return;
+        }
+        errorEl.textContent = await res.text() || "Login failed. Try again.";
+      } catch {
+        errorEl.textContent = "Can't reach the server. Check your connection and try again.";
+      }
+      button.disabled = false;
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Create account</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main>
+    <h1>Create account</h1>
+
+    <form id="register-form">
+      <label for="username">Username</label>
+      <input id="username" name="username" type="text" autocomplete="username" required autofocus>
+
+      <label for="password">Password</label>
+      <input id="password" name="password" type="password" autocomplete="new-password" required>
+
+      <label for="confirm">Confirm password</label>
+      <input id="confirm" name="confirm" type="password" autocomplete="new-password" required>
+
+      <p id="error" class="error" role="alert"></p>
+      <button type="submit">Create account</button>
+    </form>
+
+    <p class="alt">Already have an account? <a href="/login">Log in</a></p>
+  </main>
+
+  <script>
+    const form = document.getElementById("register-form");
+    const errorEl = document.getElementById("error");
+    const button = form.querySelector("button");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorEl.textContent = "";
+
+      if (form.password.value !== form.confirm.value) {
+        errorEl.textContent = "Passwords don't match.";
+        return;
+      }
+
+      button.disabled = true;
+      try {
+        const res = await fetch("/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: form.username.value,
+            password: form.password.value,
+          }),
+        });
+
+        if (res.ok) {
+          location.href = "/login";
+          return;
+        }
+        errorEl.textContent = await res.text() || "Couldn't create the account. Try again.";
+      } catch {
+        errorEl.textContent = "Can't reach the server. Check your connection and try again.";
+      }
+      button.disabled = false;
+    });
+  </script>
+</body>
+</html>

@@ -17,11 +17,6 @@ authRouter.post("/register", async (req, res) => {
 
   const salt = crypto.randomBytes(16).toString("hex");
   try {
-    await pool.query(
-      "INSERT INTO users (username, password_hash, salt) VALUES ($1, $2, $3)",
-      [username, hash(password, salt), salt]
-    );
-
     const { rows } = await pool.query(
     "INSERT INTO users (username, password_hash, salt) VALUES ($1, $2, $3) RETURNING id",
     [username, hash(password, salt), salt]
@@ -70,13 +65,13 @@ authRouter.post("/logout", async (req, res) => {
 // Use on any route that needs a logged-in user
 async function requireAuth(req, res, next) {
   const token = req.cookies?.session;
-  if (!token) return res.sendStatus(401);
+  if (!token) return deny(req, res);
 
   const { rows } = await pool.query(
     "SELECT user_id FROM sessions WHERE token = $1 AND created_at > now() - interval '7 days'",
     [token]
   );
-  if (!rows[0]) return res.sendStatus(401);
+  if (!rows[0]) return deny(req, res);
 
   req.user_id = rows[0].user_id;
   next();
@@ -109,7 +104,7 @@ async function requireAuthOrAPI(req, res, next) {
     );
 
     if (!rows[0])
-      return res.status(401).send("invalid login");
+      return deny(req, res);
     user_id = rows[0].user_id;
   }
 
@@ -117,4 +112,10 @@ async function requireAuthOrAPI(req, res, next) {
   next();
 }
 
-module.exports = { authRouter, requireAuth, requireAuthOrAPI };
+function deny(req, res) {
+  // Browser navigation prefers HTML, fetch() defaults to */*, so list json first
+  if (req.accepts(["json", "html"]) === "html") return res.redirect("/login");
+  return res.status(401).send("Not logged in");
+}
+
+module.exports = { authRouter, requireAuth, requireAuthOrAPI, deny };

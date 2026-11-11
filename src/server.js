@@ -10,7 +10,7 @@ The api can fetch images if its linked to an account
 
 const express = require("express");
 const cookieParser = require("cookie-parser");
-const { authRouter, requireAuth, requireAuthOrAPI } = require("./auth");
+const { authRouter, requireAuth, requireAuthOrAPI, deny } = require("./auth");
 const { pool, init } = require("./db");
 
 const app = express();
@@ -18,6 +18,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use("/auth", authRouter);
 app.use("/images", requireAuthOrAPI);
+app.use(express.static("public", { index: false }));
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 const uploads_path = path.join(process.cwd(), "uploads");
@@ -89,7 +90,6 @@ app.get("/images", async (req, res) => {
   res.json(dir_obj);
 });
 
-
 async function listDirJSON(dir_path) {
   try {
     const entries = await fs.readdir(dir_path, { withFileTypes: true });
@@ -116,10 +116,19 @@ async function listDirJSON(dir_path) {
   }
 }
 
+app.get("/", requireAuth, (req, res) => res.sendFile(path.join(__dirname, "../views/home.html")));
+app.get("/account", requireAuth, (req, res) => res.sendFile(path.join(__dirname, "../views/account.html")));
+
+
+
 // for testing
 module.exports = { app }
 
 // add home, login, sign up, and settings page
 // home = galery
 
-init().then(() => app.listen(3000));
+init().then(() => {
+  port = process.env.PORT || 3000;
+  console.log(`Listening on port ${port}`);
+  app.listen(3000);
+});
